@@ -1,0 +1,160 @@
+## 1. Dependencies
+
+### Python Dependencies (backend)
+```bash
+pip install fastapi
+pip install uvicorn
+pip install opencv-python
+pip install numpy
+pip install pydantic
+pip install python-multipart
+```
+
+### JavaScript Dependencies (frontend)
+```html
+<!-- Add to HTML head -->
+<script src="src/thermal-analysis.js"></script>
+```
+
+## 2. File Structure
+
+```
+project/
+├── src/
+│   ├── thermal-analysis.js      # Main thermal analysis engine
+│   └── simple.html             # Frontend with thermal UI
+├── backend/
+│   ├── thermal_api.py          # Thermal API endpoints
+│   └── main.py                 # Main backend with thermal integration
+└── docs/
+    ├── THERMAL_CODE_COMPLETE.md
+    └── INSTALLATION_GUIDE.md
+```
+
+## 3. Setup Steps
+
+### Step 1: Copy Files
+1. Copy `thermal-analysis.js` to `src/` directory
+2. Copy `thermal_api.py` to `backend/` directory
+3. Update `main.py` with thermal integration
+4. Update `simple.html` with thermal UI components
+
+### Step 2: Install Dependencies
+```bash
+cd backend
+pip install opencv-python numpy fastapi uvicorn pydantic python-multipart
+```
+
+### Step 3: Start Services
+```bash
+# Start backend API
+cd backend
+python main.py
+
+# Start frontend server
+cd ..
+node web_server.js
+```
+
+## 4. Usage Instructions
+
+### Thermal Camera Mode
+1. Click "Start Thermal Scan" button
+2. Allow camera permissions when prompted
+3. Position face 0.5-1.5 meters from camera
+4. View real-time temperature analysis
+5. Use "Calibrate" button for accuracy
+
+### Manual Temperature Mode
+1. Enter temperature value in input field
+2. Click "Add Temperature" button
+3. View results in temperature display
+
+### Risk Assessment Integration
+- Temperature data automatically integrates with HIV risk calculation
+- Fever detection adds points to risk score
+- Results include thermal analysis recommendations
+
+## 5. API Endpoints
+
+### Thermal Analysis Endpoints
+- `POST /api/thermal/analyze` - Process temperature data
+- `POST /api/thermal/calibrate` - Calibrate thermal sensors
+- `POST /api/thermal/process-frame` - Process thermal images
+- `GET /api/thermal/status` - System status
+- `GET /api/thermal/recommended-settings` - Optimal settings
+
+### Example API Usage
+```javascript
+// Analyze temperature data
+fetch('/api/thermal/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        temperature_readings: [36.5, 37.2, 36.8],
+        timestamp: new Date().toISOString(),
+        ambient_temperature: 20.0,
+        calibration_offset: 0.0
+    })
+});
+```
+
+## 6. Troubleshooting
+
+### Camera Access Issues
+- Ensure HTTPS or localhost for camera permissions
+- Check browser camera permissions
+- Verify thermal camera hardware connection
+
+### Temperature Accuracy
+- Use manual calibration with clinical thermometer
+- Maintain 0.5-1.5 meter distance
+- Avoid direct lighting or air flow
+- Allow 5-10 minutes for temperature stabilization
+
+### API Errors
+- Check backend dependencies are installed
+- Verify thermal_api.py import in main.py
+- Check CORS settings for frontend requests
+
+## 7. Configuration Options
+
+### Camera Settings
+```javascript
+const constraints = {
+    video: {
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        facingMode: 'user'
+    }
+};
+```
+
+### Temperature Thresholds
+```javascript
+const FEVER_THRESHOLD = 37.5;  // °C
+const HIGH_FEVER_THRESHOLD = 38.5;  // °C
+```
+
+### Thermal Color Mapping
+- Blue: Cold temperatures (20-30°C)
+- Green: Normal temperatures (30-37°C)
+- Yellow: Warm temperatures (37-38°C)
+- Red: Hot temperatures (38-42°C)
+
+## 8. Performance Optimization
+
+### Frontend Optimization
+- Limit temperature data array size
+- Use requestAnimationFrame for smooth rendering
+- Implement thermal data throttling
+
+### Backend Optimization
+- Cache thermal analysis results
+- Optimize OpenCV processing
+- Implement async processing for large datasets
+
+### Memory Management
+- Stop thermal streams when not in use
+- Clean up canvas contexts
+- Implement garbage collection for temperature arra
