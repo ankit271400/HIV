@@ -1,0 +1,68 @@
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+const server = http.createServer((req, res) => {
+  console.log(`Request: ${req.method} ${req.url}`);
+  
+  let filePath = path.join(__dirname, 'src', req.url === '/' ? '/simple.html' : req.url);
+  
+  // Handle simple.html specifically
+  if (req.url === '/simple.html' || req.url === '/') {
+    filePath = path.join(__dirname, 'src', 'simple.html');
+  }
+  
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  // Determine content type
+  const ext = path.extname(filePath).toLowerCase();
+  let contentType = 'text/html; charset=utf-8';
+  
+  if (ext === '.css') contentType = 'text/css';
+  if (ext === '.js') contentType = 'application/javascript';
+  if (ext === '.json') contentType = 'application/json';
+
+  fs.readFile(filePath, (error, content) => {
+    if (error) {
+      console.error(`Error reading file ${filePath}:`, error);
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      res.end(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>404 Not Found</title></head>
+        <body>
+          <h1>404 - File Not Found</h1>
+          <p>Could not find: ${req.url}</p>
+          <p>Looking for: ${filePath}</p>
+          <a href="/simple.html">Go to HIV Risk Assessment</a>
+        </body>
+        </html>
+      `);
+    } else {
+      res.writeHead(200, { 'Content-Type': contentType });
+      res.end(content, 'utf-8');
+      console.log(`Served: ${filePath} (${content.length} bytes)`);
+    }
+  });
+});
+
+const PORT = 3000;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 HIV Risk Assessment Server running on http://0.0.0.0:${PORT}/`);
+  console.log(`📱 Access app at: http://0.0.0.0:${PORT}/simple.html`);
+});
+
+// Handle server errors
+server.on('error', (err) => {
+  console.error('Server error:', err);
+});
