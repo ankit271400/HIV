@@ -1,0 +1,79 @@
+## File 1: backend/models.py (Data Models for API)
+
+```python
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Union
+from datetime import datetime
+
+class AssessmentRequest(BaseModel):
+    """Model for HIV risk assessment request"""
+    age: str = Field(..., description="Age range of the user")
+    exposure_history: str = Field(..., description="Type of potential exposure")
+    symptoms: List[str] = Field(default=[], description="List of current symptoms")
+    timeframe: str = Field(..., description="Time since potential exposure")
+    risk_factors: List[str] = Field(default=[], description="Additional risk factors")
+    temperature_data: Optional[Dict] = Field(None, description="Thermal analysis data")
+
+class AssessmentResponse(BaseModel):
+    """Model for HIV risk assessment response"""
+    risk_score: int = Field(..., description="Calculated risk score (0-100)")
+    risk_level: str = Field(..., description="Risk level: low, moderate, high")
+    recommendations: List[str] = Field(..., description="List of recommendations")
+    next_steps: List[str] = Field(..., description="Recommended next steps")
+    urgency: str = Field(..., description="Urgency level: routine, soon, urgent, immediate")
+    thermal_assessment: Optional[Dict] = Field(None, description="Thermal analysis results")
+
+class TestingCenter(BaseModel):
+    """Model for HIV testing center information"""
+    name: str = Field(..., description="Name of the testing center")
+    address: str = Field(..., description="Full address")
+    phone: str = Field(..., description="Contact phone number")
+    hours: str = Field(..., description="Operating hours")
+    services: List[str] = Field(..., description="Available services")
+    cost: str = Field(..., description="Cost information")
+    accepts_insurance: bool = Field(..., description="Whether insurance is accepted")
+    walk_ins_accepted: bool = Field(..., description="Whether walk-ins are accepted")
+    appointment_required: bool = Field(..., description="Whether appointment is required")
+    languages: List[str] = Field(..., description="Languages spoken")
+    website: Optional[str] = Field(None, description="Website URL")
+
+class ThermalAnalysisRequest(BaseModel):
+    """Model for thermal analysis request"""
+    temperature_readings: List[float] = Field(..., description="Array of temperature readings")
+    timestamp: str = Field(..., description="Timestamp of the reading")
+    ambient_temperature: Optional[float] = Field(20.0, description="Ambient room temperature")
+    calibration_offset: Optional[float] = Field(0.0, description="Calibration offset value")
+    subject_age: Optional[str] = Field(None, description="Age range of subject")
+    measurement_location: Optional[str] = Field("forehead", description="Body location measured")
+
+class ThermalAnalysisResponse(BaseModel):
+    """Model for thermal analysis response"""
+    max_temperature: float = Field(..., description="Maximum temperature detected")
+    average_temperature: float = Field(..., description="Average temperature")
+    fever_detected: bool = Field(..., description="Whether fever was detected")
+    fever_severity: str = Field(..., description="Severity: none, moderate, high")
+    hotspot_count: int = Field(..., description="Number of hotspots detected")
+    risk_level: str = Field(..., description="Thermal risk level")
+    recommendation: str = Field(..., description="Medical recommendation")
+    confidence_score: float = Field(..., description="Confidence in reading (0-1)")
+    processing_timestamp: str = Field(..., description="When analysis was performed")
+
+class UserSession(BaseModel):
+    """Model for user session data"""
+    session_id: str = Field(..., description="Unique session identifier")
+    created_at: datetime = Field(..., description="Session creation time")
+    last_activity: datetime = Field(..., description="Last activity timestamp")
+    assessments_completed: int = Field(0, description="Number of assessments in session")
+    thermal_analyses_performed: int = Field(0, description="Number of thermal analyses")
+    user_preferences: Dict = Field(default={}, description="User preferences and settings")
+
+class HealthMetrics(BaseModel):
+    """Model for health metrics tracking"""
+    temperature: Optional[float] = Field(None, description="Body temperature in Celsius")
+    heart_rate: Optional[int] = Field(None, description="Heart rate in BPM")
+    blood_pressure: Optional[str] = Field(None, description="Blood pressure reading")
+    symptoms: List[str] = Field(default=[], description="Current symptoms")
+    medications: List[str] = Field(default=[], description="Current medications")
+    last_test_date: Optional[str] = Field(None, description="Last HIV test date")
+    vaccination_status: Optional[str] = Field(None, description="Vaccination status")
+```
