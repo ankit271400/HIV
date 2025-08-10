@@ -1,0 +1,366 @@
+import os
+import sys
+import uvicorn
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer
+from pydantic import BaseModel
+from typing import List, Optional
+import asyncio
+import sqlite3
+from pathlib import Path
+
+# Add current directory to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from models import AssessmentRequest, AssessmentResponse, TestingCenter
+from database import init_database, get_db
+from risk_assessment import calculate_risk_score, generate_recommendations
+from encryption import encrypt_data, decrypt_data
+
+# Import thermal API
+try:
+    from thermal_api import router as thermal_router
+    thermal_available = True
+except ImportError:
+    thermal_available = False
+
+app = FastAPI(
+    title="HIV Risk Assessment API",
+    description="Secure API for HIV risk assessment and guidance",
+    version="1.0.0"
+)
+
+# CORS middleware for Electron app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, restrict to specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+security = HTTPBearer(auto_error=False)
+
+# Mount static files from src directory
+static_path = Path(__file__).parent.parent / "src"
+if static_path.exists():
+    # Mount specific file types to handle React app properly
+    app.mount("/styles", StaticFiles(directory=str(static_path / "styles")), name="styles")
+    app.mount("/components", StaticFiles(directory=str(static_path / "components")), name="components")
+
+# Include thermal API routes if available
+if thermal_available:
+    app.include_router(thermal_router, prefix="/api", tags=["thermal"])
+    app.mount("/utils", StaticFiles(directory=str(static_path / "utils")), name="utils")
+    app.mount("/contexts", StaticFiles(directory=str(static_path / "contexts")), name="contexts")
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup"""
+    init_database()
+    print("✅ HIV Risk Assessment API started successfully")
+    print("🔒 Database initialized with encryption")
+    print("🌐 API available at http://localhost:8000")
+
+@app.get("/styles/index.css")
+async def serve_css():
+    """Serve the CSS file"""
+    css_path = Path(__file__).parent.parent / "src" / "styles" / "index.css"
+    if css_path.exists():
+        return FileResponse(css_path, media_type="text/css")
+    else:
+        raise HTTPException(status_code=404, detail="CSS file not found")
+
+@app.get("/index.jsx")
+async def serve_main_js():
+    """Serve the main JavaScript file"""
+    js_path = Path(__file__).parent.parent / "src" / "index.jsx"
+    if js_path.exists():
+        return FileResponse(js_path, media_type="application/javascript")
+    else:
+        raise HTTPException(status_code=404, detail="JavaScript file not found")
+
+@app.get("/App.jsx")
+async def serve_app_js():
+    """Serve the App JavaScript file"""
+    js_path = Path(__file__).parent.parent / "src" / "App.jsx"
+    if js_path.exists():
+        return FileResponse(js_path, media_type="application/javascript")
+    else:
+        raise HTTPException(status_code=404, detail="App JavaScript file not found")
+
+# Serve component files
+@app.get("/components/{file_name}")
+async def serve_component(file_name: str):
+    """Serve component files"""
+    if not file_name.endswith('.jsx'):
+        raise HTTPException(status_code=400, detail="Only .jsx files allowed")
+    
+    file_path = Path(__file__).parent.parent / "src" / "components" / file_name
+    if file_path.exists():
+        return FileResponse(file_path, media_type="application/javascript")
+    else:
+        raise HTTPException(status_code=404, detail=f"Component {file_name} not found")
+
+# Serve utility files
+@app.get("/utils/{file_name}")
+async def serve_utils(file_name: str):
+    """Serve utility files"""
+    if not file_name.endswith('.js'):
+        raise HTTPException(status_code=400, detail="Only .js files allowed")
+    
+    file_path = Path(__file__).parent.parent / "src" / "utils" / file_name
+    if file_path.exists():
+        return FileResponse(file_path, media_type="application/javascript")
+    else:
+        raise HTTPException(status_code=404, detail=f"Utility {file_name} not found")
+
+# Serve context files
+@app.get("/contexts/{file_name}")
+async def serve_contexts(file_name: str):
+    """Serve context files"""
+    if not file_name.endswith('.jsx'):
+        raise HTTPException(status_code=400, detail="Only .jsx files allowed")
+    
+    file_path = Path(__file__).parent.parent / "src" / "contexts" / file_name
+    if file_path.exists():
+        return FileResponse(file_path, media_type="application/javascript")
+    else:
+        raise HTTPException(status_code=404, detail=f"Context {file_name} not found")
+
+@app.get("/simple")
+async def serve_simple():
+    """Serve the simple HTML file"""
+    html_path = Path(__file__).parent.parent / "src" / "simple.html"
+    if html_path.exists():
+        return FileResponse(html_path)
+    else:
+        raise HTTPException(status_code=404, detail="Simple file not found")
+
+@app.get("/test")
+async def serve_test():
+    """Serve the test HTML file"""
+    html_path = Path(__file__).parent.parent / "src" / "test.html"
+    if html_path.exists():
+        return FileResponse(html_path)
+    else:
+        raise HTTPException(status_code=404, detail="Test file not found")
+
+@app.get("/app")
+async def serve_frontend():
+    """Serve the frontend HTML file"""
+    html_path = Path(__file__).parent.parent / "src" / "index.html"
+    if html_path.exists():
+        return FileResponse(html_path)
+    else:
+        raise HTTPException(status_code=404, detail="Frontend not found")
+
+@app.get("/")
+async def root():
+    """Root endpoint with API information"""
+    return {
+        "message": "HIV Risk Assessment API",
+        "version": "1.0.0",
+        "status": "active",
+        "frontend": "/app",
+        "endpoints": {
+            "assessment": "/api/assess",
+            "testing_centers": "/api/testing-centers",
+            "health": "/health"
+        }
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "timestamp": "2025-01-10T12:00:00Z"}
+
+@app.post("/api/assess", response_model=AssessmentResponse)
+async def assess_risk(request: AssessmentRequest, db: sqlite3.Connection = Depends(get_db)):
+    """
+    Perform HIV risk assessment based on user inputs
+    """
+    try:
+        # Calculate risk score
+        risk_score = calculate_risk_score(
+            age=request.age,
+            exposure_history=request.exposure_history,
+            symptoms=request.symptoms,
+            timeframe=request.timeframe,
+            risk_factors=request.risk_factors
+        )
+        
+        # Determine risk level
+        if risk_score < 30:
+            risk_level = "low"
+        elif risk_score < 70:
+            risk_level = "moderate"
+        else:
+            risk_level = "high"
+        
+        # Generate recommendations
+        recommendations = generate_recommendations(risk_level, request.timeframe, request.symptoms)
+        
+        # Create response
+        response = AssessmentResponse(
+            risk_score=risk_score,
+            risk_level=risk_level,
+            recommendations=recommendations,
+            next_steps=get_next_steps(risk_level),
+            urgency=get_urgency_level(risk_level, request.timeframe)
+        )
+        
+        # Store assessment (encrypted)
+        encrypted_data = encrypt_data({
+            "request": request.dict(),
+            "response": response.dict(),
+            "timestamp": "2025-01-10T12:00:00Z"
+        })
+        
+        cursor = db.cursor()
+        cursor.execute(
+            "INSERT INTO assessments (encrypted_data, created_at) VALUES (?, datetime('now'))",
+            (encrypted_data,)
+        )
+        db.commit()
+        
+        return response
+        
+    except Exception as e:
+        print(f"Assessment error: {e}")
+        raise HTTPException(status_code=500, detail="Assessment processing failed")
+
+@app.get("/api/testing-centers", response_model=List[TestingCenter])
+async def get_testing_centers(zipcode: Optional[str] = None):
+    """
+    Get list of HIV testing centers
+    """
+    try:
+        # In a real application, this would query a database or external API
+        # For demo purposes, returning sample data
+        centers = [
+            TestingCenter(
+                name="Community Health Center",
+                address="123 Main St, Anytown, ST 12345",
+                phone="(555) 123-4567",
+                hours="Mon-Fri: 8AM-6PM, Sat: 9AM-2PM",
+                services=["HIV Testing", "STI Screening", "PrEP Services", "Counseling"],
+                cost="Free",
+                accepts_insurance=True,
+                walk_ins_accepted=True,
+                appointment_required=False,
+                languages=["English", "Spanish"],
+                website="https://example-health.org"
+            ),
+            TestingCenter(
+                name="Planned Parenthood",
+                address="456 Oak Ave, Anytown, ST 12345",
+                phone="(555) 987-6543",
+                hours="Mon-Fri: 9AM-5PM",
+                services=["HIV Testing", "STI Testing", "Contraception", "STI Treatment"],
+                cost="Sliding scale",
+                accepts_insurance=True,
+                walk_ins_accepted=False,
+                appointment_required=True,
+                languages=["English", "Spanish", "French"],
+                website="https://plannedparenthood.org"
+            ),
+            TestingCenter(
+                name="City Public Health Department",
+                address="789 Government Blvd, Anytown, ST 12345",
+                phone="(555) 456-7890",
+                hours="Mon-Thu: 8AM-5PM, Fri: 8AM-4PM",
+                services=["HIV Testing", "Contact Tracing", "Immunizations", "Health Education"],
+                cost="Free",
+                accepts_insurance=False,
+                walk_ins_accepted=True,
+                appointment_required=False,
+                languages=["English", "Spanish", "Mandarin"],
+                website="https://cityhealth.gov"
+            )
+        ]
+        
+        return centers
+        
+    except Exception as e:
+        print(f"Testing centers error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve testing centers")
+
+@app.get("/api/counselors")
+async def get_counselors():
+    """
+    Get list of HIV counselors and support services
+    """
+    try:
+        counselors = [
+            {
+                "name": "National HIV/AIDS Hotline",
+                "phone": "1-800-HIV-0440",
+                "availability": "24/7",
+                "services": ["Crisis counseling", "Information", "Referrals"],
+                "languages": ["English", "Spanish"]
+            },
+            {
+                "name": "Local HIV Support Group",
+                "phone": "(555) 123-HELP",
+                "availability": "Mon-Fri: 9AM-5PM",
+                "services": ["Peer support", "Group counseling", "Case management"],
+                "languages": ["English"]
+            }
+        ]
+        
+        return counselors
+        
+    except Exception as e:
+        print(f"Counselors error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve counselor information")
+
+def get_next_steps(risk_level: str) -> List[str]:
+    """Generate next steps based on risk level"""
+    if risk_level == "low":
+        return [
+            "Continue practicing safe behaviors",
+            "Consider regular testing if sexually active",
+            "Learn about PrEP if at ongoing risk"
+        ]
+    elif risk_level == "moderate":
+        return [
+            "Get tested as soon as possible",
+            "Consider speaking with a healthcare provider",
+            "Review and improve risk reduction strategies"
+        ]
+    else:  # high risk
+        return [
+            "Seek immediate testing and medical consultation",
+            "Consider post-exposure prophylaxis (PEP) if within 72 hours",
+            "Contact emergency services if experiencing severe symptoms"
+        ]
+
+def get_urgency_level(risk_level: str, timeframe: str) -> str:
+    """Determine urgency level based on risk and timeframe"""
+    if risk_level == "high":
+        if timeframe == "within-72-hours":
+            return "immediate"
+        else:
+            return "urgent"
+    elif risk_level == "moderate":
+        return "soon"
+    else:
+        return "routine"
+
+if __name__ == "__main__":
+    # Ensure the database directory exists
+    db_dir = Path("data")
+    db_dir.mkdir(exist_ok=True)
+    
+    # Run the server
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=False,
+        log_level="info"
+    )
